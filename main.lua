@@ -10,6 +10,7 @@ local HttpService = game:GetService("HttpService")
 -- Game variables
 local GameManager = {}
 GameManager.MaxPlayers = 35
+GameManager.MaxStudentsPerClass = 3 -- Máximo 3 estudiantes por aula
 GameManager.TotalQuestions = 100
 GameManager.CurrentQuestion = 1
 GameManager.QuestionTime = 30 -- seconds per question
@@ -251,13 +252,19 @@ function GameManager:CreateClassroom()
     -- Registration button functionality
     regButton.MouseButton1Click:Connect(function()
         local player = Players.LocalPlayer
-        if self:RegisterStudent(player, 1) then
+        local result = self:RegisterStudent(player, 1)
+        
+        if result == true then
             regButton.Text = "¡REGISTRADO!"
             regButton.BackgroundColor3 = Color3.new(0, 0.5, 0)
+        elseif result == "FULL" then
+            regButton.Text = "AULA LLENA (3/3)"
+            regButton.BackgroundColor3 = Color3.new(0.8, 0.2, 0.2)
         else
             regButton.Text = "YA REGISTRADO"
             regButton.BackgroundColor3 = Color3.new(0.8, 0.4, 0)
         end
+        
         wait(2)
         regButton.Text = "REGISTRARSE COMO ESTUDIANTE"
         regButton.BackgroundColor3 = Color3.new(0, 0.7, 0)
@@ -557,13 +564,19 @@ function GameManager:CreateClassroom2()
     -- Registration button functionality
     regButton2.MouseButton1Click:Connect(function()
         local player = Players.LocalPlayer
-        if self:RegisterStudent(player, 2) then
+        local result = self:RegisterStudent(player, 2)
+        
+        if result == true then
             regButton2.Text = "¡REGISTRADO!"
             regButton2.BackgroundColor3 = Color3.new(0, 0.5, 0)
+        elseif result == "FULL" then
+            regButton2.Text = "AULA LLENA (3/3)"
+            regButton2.BackgroundColor3 = Color3.new(0.8, 0.2, 0.2)
         else
             regButton2.Text = "YA REGISTRADO"
             regButton2.BackgroundColor3 = Color3.new(0.8, 0.4, 0)
         end
+        
         wait(2)
         regButton2.Text = "REGISTRARSE COMO ESTUDIANTE"
         regButton2.BackgroundColor3 = Color3.new(0, 0.7, 0)
@@ -754,110 +767,326 @@ function GameManager:CreateDesks()
             
             local deskPosition = Vector3.new(
                 (col - 3) * deskSpacing,
-                2.5,
+                3,
                 (row - 4) * deskSpacing - 20
             )
             
-            -- Create modern desk
+            -- Create futuristic holographic base platform
+            local holoBase = Instance.new("Part")
+            holoBase.Name = "HoloBase_" .. row .. "_" .. col
+            holoBase.Size = Vector3.new(10, 0.5, 6)
+            holoBase.Position = deskPosition + Vector3.new(0, -2, 0)
+            holoBase.Material = Enum.Material.ForceField
+            holoBase.BrickColor = BrickColor.new("Cyan")
+            holoBase.Anchored = true
+            holoBase.Transparency = 0.3
+            holoBase.Parent = workspace
+            
+            -- Add glowing effect to base
+            local baseGlow = Instance.new("PointLight")
+            baseGlow.Brightness = 2
+            baseGlow.Range = 15
+            baseGlow.Color = Color3.new(0, 1, 1)
+            baseGlow.Parent = holoBase
+            
+            -- Create main holographic screen (this replaces the desk)
             local desk = Instance.new("Part")
             desk.Name = "Desk_" .. row .. "_" .. col
-            desk.Size = Vector3.new(8, 1, 5)
-            desk.Position = deskPosition
-            desk.Material = Enum.Material.Glass
-            desk.BrickColor = BrickColor.new("Institutional white")
+            desk.Size = Vector3.new(9, 6, 0.2)
+            desk.Position = deskPosition + Vector3.new(0, 1, 0)
+            desk.Material = Enum.Material.ForceField
+            desk.BrickColor = BrickColor.new("Bright blue")
             desk.Anchored = true
+            desk.Transparency = 0.1
             desk.Parent = workspace
             
-            -- Add desk legs (modern metal legs)
+            -- Add holographic glow effect
+            local screenGlow = Instance.new("PointLight")
+            screenGlow.Brightness = 3
+            screenGlow.Range = 20
+            screenGlow.Color = Color3.new(0, 0.5, 1)
+            screenGlow.Parent = desk
+            
+            -- Create energy support pillars instead of legs
             for i = 1, 4 do
-                local leg = Instance.new("Part")
-                leg.Name = "DeskLeg_" .. i
-                leg.Size = Vector3.new(0.3, 4, 0.3)
-                leg.Material = Enum.Material.Metal
-                leg.BrickColor = BrickColor.new("Dark stone grey")
-                leg.Anchored = true
-                leg.Parent = workspace
+                local energyPillar = Instance.new("Part")
+                energyPillar.Name = "EnergyPillar_" .. i
+                energyPillar.Size = Vector3.new(0.8, 4, 0.8)
+                energyPillar.Material = Enum.Material.Neon
+                energyPillar.BrickColor = BrickColor.new("Electric blue")
+                energyPillar.Anchored = true
+                energyPillar.Transparency = 0.2
+                energyPillar.Parent = workspace
                 
-                local xOffset = (i <= 2) and -3.5 or 3.5
-                local zOffset = (i % 2 == 1) and -2 or 2
-                leg.Position = deskPosition + Vector3.new(xOffset, -2.5, zOffset)
+                local xOffset = (i <= 2) and -4 or 4
+                local zOffset = (i % 2 == 1) and -2.5 or 2.5
+                energyPillar.Position = deskPosition + Vector3.new(xOffset, -1, zOffset)
+                
+                -- Add energy effect to pillars
+                local pillarGlow = Instance.new("PointLight")
+                pillarGlow.Brightness = 1.5
+                pillarGlow.Range = 10
+                pillarGlow.Color = Color3.new(0, 0.8, 1)
+                pillarGlow.Parent = energyPillar
+                
+                -- Add particle effect to pillars
+                local attachment = Instance.new("Attachment")
+                attachment.Parent = energyPillar
+                
+                local particles = Instance.new("ParticleEmitter")
+                particles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+                particles.Lifetime = NumberRange.new(0.5, 1.5)
+                particles.Rate = 20
+                particles.SpreadAngle = Vector2.new(15, 15)
+                particles.Speed = NumberRange.new(3)
+                particles.Color = ColorSequence.new(Color3.new(0, 0.8, 1))
+                particles.Parent = attachment
             end
             
-            -- Create modern chair with seat functionality
+            -- Create futuristic floating chair with energy field
             local chair = Instance.new("Part")
             chair.Name = "Chair_" .. row .. "_" .. col
-            chair.Size = Vector3.new(4, 0.5, 4)
+            chair.Size = Vector3.new(4, 0.6, 4)
             chair.Position = deskPosition + Vector3.new(0, 1.5, -6)
-            chair.Material = Enum.Material.Fabric
-            chair.BrickColor = BrickColor.new("Really red")
+            chair.Material = Enum.Material.ForceField
+            chair.BrickColor = BrickColor.new("Bright violet")
             chair.Anchored = true
+            chair.Transparency = 0.2
+            chair.Shape = Enum.PartType.Cylinder
             chair.Parent = workspace
             
-            -- Add seat functionality with proper positioning
+            -- Add chair glow effect
+            local chairGlow = Instance.new("PointLight")
+            chairGlow.Brightness = 2
+            chairGlow.Range = 12
+            chairGlow.Color = Color3.new(0.8, 0, 1)
+            chairGlow.Parent = chair
+            
+            -- Add floating seat functionality
             local seat = Instance.new("Seat")
             seat.Name = "Seat_" .. row .. "_" .. col
-            seat.Size = Vector3.new(4, 0.2, 4)
-            seat.Position = deskPosition + Vector3.new(0, 2.1, -6)
-            seat.Material = Enum.Material.Fabric
-            seat.BrickColor = BrickColor.new("Really red")
+            seat.Size = Vector3.new(3.5, 0.3, 3.5)
+            seat.Position = deskPosition + Vector3.new(0, 2.2, -6)
+            seat.Material = Enum.Material.Neon
+            seat.BrickColor = BrickColor.new("Magenta")
             seat.Anchored = true
             seat.Disabled = false -- Enable sitting
+            seat.Transparency = 0.1
+            -- Orient the seat to face the holographic screen
+            seat.CFrame = CFrame.new(seat.Position, seat.Position + Vector3.new(0, 0, 1))
             seat.Parent = workspace
             
-            -- Chair back
+            -- Add seat glow
+            local seatGlow = Instance.new("PointLight")
+            seatGlow.Brightness = 1.5
+            seatGlow.Range = 8
+            seatGlow.Color = Color3.new(1, 0, 0.8)
+            seatGlow.Parent = seat
+            
+            -- Create energy field back support
             local chairBack = Instance.new("Part")
             chairBack.Name = "ChairBack_" .. row .. "_" .. col
-            chairBack.Size = Vector3.new(4, 6, 0.5)
+            chairBack.Size = Vector3.new(4, 6, 0.3)
             chairBack.Position = deskPosition + Vector3.new(0, 4, -8)
-            chairBack.Material = Enum.Material.Fabric
-            chairBack.BrickColor = BrickColor.new("Really red")
+            chairBack.Material = Enum.Material.ForceField
+            chairBack.BrickColor = BrickColor.new("Bright violet")
             chairBack.Anchored = true
+            chairBack.Transparency = 0.3
             chairBack.Parent = workspace
             
-            -- Chair legs (modern style)
-            for i = 1, 4 do
-                local chairLeg = Instance.new("Part")
-                chairLeg.Name = "ChairLeg_" .. i
-                chairLeg.Size = Vector3.new(0.3, 3, 0.3)
-                chairLeg.Material = Enum.Material.Metal
-                chairLeg.BrickColor = BrickColor.new("Dark stone grey")
-                chairLeg.Anchored = true
-                chairLeg.Parent = workspace
+            -- Add back support glow
+            local backGlow = Instance.new("PointLight")
+            backGlow.Brightness = 1.8
+            backGlow.Range = 10
+            backGlow.Color = Color3.new(0.6, 0, 1)
+            backGlow.Parent = chairBack
+            
+            -- Create floating energy orbs instead of legs
+            for i = 1, 3 do
+                local energyOrb = Instance.new("Part")
+                energyOrb.Name = "EnergyOrb_" .. i
+                energyOrb.Size = Vector3.new(1, 1, 1)
+                energyOrb.Shape = Enum.PartType.Ball
+                energyOrb.Material = Enum.Material.Neon
+                energyOrb.BrickColor = BrickColor.new("Electric blue")
+                energyOrb.Anchored = true
+                energyOrb.Transparency = 0.1
+                energyOrb.Parent = workspace
                 
-                local xOffset = (i <= 2) and -1.5 or 1.5
-                local zOffset = (i % 2 == 1) and -1.5 or 1.5
-                chairLeg.Position = deskPosition + Vector3.new(xOffset, 0, zOffset - 6)
+                -- Position orbs in a triangle under the chair
+                local angle = (i - 1) * 120 -- 120 degrees apart
+                local radius = 2.5
+                local xOffset = math.cos(math.rad(angle)) * radius
+                local zOffset = math.sin(math.rad(angle)) * radius
+                energyOrb.Position = deskPosition + Vector3.new(xOffset, 0.5, zOffset - 6)
+                
+                -- Add orb glow
+                local orbGlow = Instance.new("PointLight")
+                orbGlow.Brightness = 2
+                orbGlow.Range = 8
+                orbGlow.Color = Color3.new(0, 1, 1)
+                orbGlow.Parent = energyOrb
+                
+                -- Add floating animation
+                local orbTween = TweenService:Create(
+                    energyOrb,
+                    TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                    {Position = energyOrb.Position + Vector3.new(0, 1, 0)}
+                )
+                orbTween:Play()
             end
             
-            -- Create answer GUI on desk
+            -- Create futuristic holographic nameplate
+            local nameplate = Instance.new("Part")
+            nameplate.Name = "Nameplate_" .. row .. "_" .. col
+            nameplate.Size = Vector3.new(5, 2.5, 0.1)
+            nameplate.Position = deskPosition + Vector3.new(0, 7, -8.5)
+            nameplate.Material = Enum.Material.ForceField
+            nameplate.BrickColor = BrickColor.new("Cyan")
+            nameplate.Anchored = true
+            nameplate.Transparency = 0.8 -- Initially semi-transparent
+            nameplate.Parent = workspace
+            
+            -- Add nameplate glow
+            local nameplateGlow = Instance.new("PointLight")
+            nameplateGlow.Brightness = 1.5
+            nameplateGlow.Range = 10
+            nameplateGlow.Color = Color3.new(0, 1, 1)
+            nameplateGlow.Parent = nameplate
+            
+            -- Add player info GUI to nameplate
+            local nameplateGui = Instance.new("SurfaceGui")
+            nameplateGui.Face = Enum.NormalId.Front
+            nameplateGui.Parent = nameplate
+            
+            -- Circular profile picture frame
+            local profileFrame = Instance.new("Frame")
+            profileFrame.Name = "ProfileFrame"
+            profileFrame.Size = UDim2.new(0.4, 0, 0.8, 0)
+            profileFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
+            profileFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+            profileFrame.BorderSizePixel = 2
+            profileFrame.Parent = nameplateGui
+            
+            -- Make frame circular
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(1, 0)
+            corner.Parent = profileFrame
+            
+            -- Profile picture
+            local profilePicture = Instance.new("ImageLabel")
+            profilePicture.Name = "ProfilePicture"
+            profilePicture.Size = UDim2.new(1, -4, 1, -4)
+            profilePicture.Position = UDim2.new(0, 2, 0, 2)
+            profilePicture.BackgroundTransparency = 1
+            profilePicture.Image = ""
+            profilePicture.Parent = profileFrame
+            
+            -- Make picture circular
+            local pictureCorner = Instance.new("UICorner")
+            pictureCorner.CornerRadius = UDim.new(1, 0)
+            pictureCorner.Parent = profilePicture
+            
+            -- Player name label
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Name = "PlayerName"
+            nameLabel.Size = UDim2.new(0.5, 0, 1, 0)
+            nameLabel.Position = UDim2.new(0.5, 0, 0, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = ""
+            nameLabel.TextColor3 = Color3.new(0, 0, 0)
+            nameLabel.TextScaled = true
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.Parent = nameplateGui
+            
+            -- Create holographic interface on screen
             local surfaceGui = Instance.new("SurfaceGui")
-            surfaceGui.Face = Enum.NormalId.Top
+            surfaceGui.Face = Enum.NormalId.Front
             surfaceGui.Parent = desk
             
             local answerFrame = Instance.new("Frame")
             answerFrame.Size = UDim2.new(1, 0, 1, 0)
-            answerFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+            answerFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+            answerFrame.BackgroundTransparency = 0.2
+            answerFrame.BorderSizePixel = 0
             answerFrame.Parent = surfaceGui
             
-            -- Answer buttons
+            -- Add holographic border effect
+            local borderGradient = Instance.new("UIGradient")
+            borderGradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.new(0, 1, 1)),
+                ColorSequenceKeypoint.new(0.5, Color3.new(0, 0.5, 1)),
+                ColorSequenceKeypoint.new(1, Color3.new(0.5, 0, 1))
+            }
+            borderGradient.Parent = answerFrame
+            
+            -- Add scanning line effect
+            local scanLine = Instance.new("Frame")
+            scanLine.Name = "ScanLine"
+            scanLine.Size = UDim2.new(1, 0, 0.02, 0)
+            scanLine.Position = UDim2.new(0, 0, 0, 0)
+            scanLine.BackgroundColor3 = Color3.new(0, 1, 1)
+            scanLine.BorderSizePixel = 0
+            scanLine.Parent = answerFrame
+            
+            -- Animate scanning line
+            local scanTween = TweenService:Create(
+                scanLine,
+                TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false),
+                {Position = UDim2.new(0, 0, 1, 0)}
+            )
+            scanTween:Play()
+            
+            -- Create futuristic answer buttons
             for i = 1, 4 do
                 local button = Instance.new("TextButton")
                 button.Name = "Option" .. i
-                button.Size = UDim2.new(0.45, 0, 0.45, 0)
+                button.Size = UDim2.new(0.42, 0, 0.35, 0)
                 button.Position = UDim2.new(
-                    ((i - 1) % 2) * 0.5 + 0.025,
+                    ((i - 1) % 2) * 0.47 + 0.04,
                     0,
-                    math.floor((i - 1) / 2) * 0.5 + 0.025,
+                    math.floor((i - 1) / 2) * 0.45 + 0.1,
                     0
                 )
-                button.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+                button.BackgroundColor3 = Color3.new(0, 0.2, 0.4)
+                button.BorderSizePixel = 2
+                button.BorderColor3 = Color3.new(0, 1, 1)
                 button.Text = "?"
+                button.TextColor3 = Color3.new(0, 1, 1)
                 button.TextScaled = true
-                button.Font = Enum.Font.Gotham
+                button.Font = Enum.Font.Code
                 button.Parent = answerFrame
                 
-                -- Button click handler
+                -- Add corner radius for futuristic look
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0, 8)
+                corner.Parent = button
+                
+                -- Add glow effect to buttons
+                local buttonGlow = Instance.new("UIStroke")
+                buttonGlow.Thickness = 2
+                buttonGlow.Color = Color3.new(0, 1, 1)
+                buttonGlow.Transparency = 0.3
+                buttonGlow.Parent = button
+                
+                -- Button hover effect
+                button.MouseEnter:Connect(function()
+                    button.BackgroundColor3 = Color3.new(0, 0.4, 0.6)
+                    buttonGlow.Color = Color3.new(1, 1, 0)
+                end)
+                
+                button.MouseLeave:Connect(function()
+                    button.BackgroundColor3 = Color3.new(0, 0.2, 0.4)
+                    buttonGlow.Color = Color3.new(0, 1, 1)
+                end)
+                
+                -- Button click handler with effect
                 button.MouseButton1Click:Connect(function()
+                    -- Flash effect when clicked
+                    button.BackgroundColor3 = Color3.new(1, 1, 1)
+                    wait(0.1)
+                    button.BackgroundColor3 = Color3.new(0, 0.2, 0.4)
+                    
                     self:SubmitAnswer(desk, i)
                 end)
             end
@@ -867,6 +1096,7 @@ function GameManager:CreateDesks()
                 desk = desk,
                 chair = chair,
                 seat = seat,
+                nameplate = nameplate,
                 occupied = false,
                 player = nil,
                 answered = false,
@@ -879,10 +1109,26 @@ end
 function GameManager:RegisterStudent(player, classroom)
     local aula = "Aula" .. classroom
     
-    -- Check if already registered
+    -- Check if classroom is full
+    if #self.RegisteredStudents[aula] >= self.MaxStudentsPerClass then
+        return "FULL"
+    end
+    
+    -- Check if already registered in this classroom
     for _, registeredPlayer in ipairs(self.RegisteredStudents[aula]) do
         if registeredPlayer.UserId == player.UserId then
             return false -- Already registered
+        end
+    end
+    
+    -- Check if registered in other classroom
+    for aulaName, students in pairs(self.RegisteredStudents) do
+        if aulaName ~= aula then
+            for _, registeredPlayer in ipairs(students) do
+                if registeredPlayer.UserId == player.UserId then
+                    return false -- Already registered in another classroom
+                end
+            end
         end
     end
     
@@ -890,16 +1136,138 @@ function GameManager:RegisterStudent(player, classroom)
     table.insert(self.RegisteredStudents[aula], player)
     
     -- Update counter on registration board
+    self:UpdateStudentCounter(classroom)
+    
+    -- Check if we should auto-start the game
+    local totalRegistered = #self.RegisteredStudents.Aula1 + #self.RegisteredStudents.Aula2
+    if totalRegistered >= 2 and not self.GameActive then
+        self:AutoStartGame()
+    end
+    
+    return true
+end
+
+function GameManager:UpdateStudentCounter(classroom)
+    local aula = "Aula" .. classroom
     local boardName = "RegistrationBoard" .. classroom
     local board = game.Workspace:FindFirstChild(boardName)
     if board and board.SurfaceGui then
         local counter = board.SurfaceGui:FindFirstChild("StudentCount" .. classroom)
         if counter then
-            counter.Text = "Estudiantes registrados: " .. #self.RegisteredStudents[aula]
+            counter.Text = "Estudiantes registrados: " .. #self.RegisteredStudents[aula] .. "/3"
+        end
+    end
+end
+
+function GameManager:UpdateAllCounters()
+    -- Update both classroom counters
+    self:UpdateStudentCounter(1)
+    self:UpdateStudentCounter(2)
+    
+    -- Update blackboard with total registration info
+    if self.Blackboard and self.Blackboard.SurfaceGui then
+        local totalRegistered = #self.RegisteredStudents.Aula1 + #self.RegisteredStudents.Aula2
+        local questionLabel = self.Blackboard.SurfaceGui.QuestionLabel
+        local timerLabel = self.Blackboard.SurfaceGui.TimerLabel
+        
+        if not self.GameActive then
+            questionLabel.Text = "Esperando jugadores..."
+            timerLabel.Text = "Total registrados: " .. totalRegistered .. " (Mínimo 2 para iniciar)"
+            
+            if totalRegistered >= 2 then
+                timerLabel.Text = "¡Suficientes jugadores! El juego iniciará pronto..."
+            end
+        end
+    end
+end
+
+function GameManager:AutoStartGame()
+    if self.GameActive then return end
+    
+    local totalRegistered = #self.RegisteredStudents.Aula1 + #self.RegisteredStudents.Aula2
+    if totalRegistered < 2 then return end
+    
+    -- Announce countdown
+    local questionLabel = self.Blackboard.SurfaceGui.QuestionLabel
+    local timerLabel = self.Blackboard.SurfaceGui.TimerLabel
+    
+    questionLabel.Text = "¡INICIANDO JUEGO AUTOMÁTICAMENTE!"
+    timerLabel.Text = "El juego comenzará en 10 segundos..."
+    
+    for i = 10, 1, -1 do
+        timerLabel.Text = "El juego comenzará en " .. i .. " segundos..."
+        wait(1)
+    end
+    
+    -- Assign registered players to desks
+    for aula, students in pairs(self.RegisteredStudents) do
+        for _, player in ipairs(students) do
+            if player.Character then
+                self:AssignPlayerToDesk(player)
+            end
         end
     end
     
-    return true
+    self:StartGame()
+end
+
+function GameManager:CreateArrowPath(startPos, endPos, player)
+    local distance = (endPos - startPos).Magnitude
+    local segments = math.floor(distance / 8) -- Arrow every 8 studs
+    
+    for i = 1, segments do
+        local progress = i / segments
+        local arrowPos = startPos:Lerp(endPos, progress)
+        arrowPos = arrowPos + Vector3.new(0, 0.5, 0) -- Slightly above ground
+        
+        local arrow = Instance.new("Part")
+        arrow.Name = "Arrow_" .. player.UserId .. "_" .. i
+        arrow.Size = Vector3.new(2, 0.2, 4)
+        arrow.Position = arrowPos
+        arrow.Material = Enum.Material.Neon
+        arrow.BrickColor = BrickColor.new("Bright green")
+        arrow.Anchored = true
+        arrow.Shape = Enum.PartType.Cylinder
+        arrow.Parent = workspace
+        
+        -- Orient arrow towards destination
+        local direction = (endPos - startPos).Unit
+        arrow.CFrame = CFrame.lookAt(arrowPos, arrowPos + direction)
+        arrow.CFrame = arrow.CFrame * CFrame.Angles(0, math.rad(90), 0)
+        
+        -- Add pulsing effect
+        local tween = TweenService:Create(
+            arrow,
+            TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {Transparency = 0.7}
+        )
+        tween:Play()
+        
+        -- Remove arrow after 15 seconds
+        game:GetService("Debris"):AddItem(arrow, 15)
+    end
+    
+    -- Create final destination marker
+    local marker = Instance.new("Part")
+    marker.Name = "DeskMarker_" .. player.UserId
+    marker.Size = Vector3.new(6, 0.2, 6)
+    marker.Position = endPos + Vector3.new(0, 0.1, 0)
+    marker.Material = Enum.Material.Neon
+    marker.BrickColor = BrickColor.new("Bright yellow")
+    marker.Anchored = true
+    marker.Shape = Enum.PartType.Cylinder
+    marker.Parent = workspace
+    
+    -- Add pulsing effect to marker
+    local markerTween = TweenService:Create(
+        marker,
+        TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        {Transparency = 0.5, Size = Vector3.new(8, 0.2, 8)}
+    )
+    markerTween:Play()
+    
+    -- Remove marker after 20 seconds
+    game:GetService("Debris"):AddItem(marker, 20)
 end
 
 function GameManager:AssignPlayerToDesk(player)
@@ -907,6 +1275,55 @@ function GameManager:AssignPlayerToDesk(player)
         if not deskData.occupied then
             deskData.occupied = true
             deskData.player = player
+            
+            -- Update nameplate with player info
+            local nameplate = deskData.nameplate
+            nameplate.Transparency = 0 -- Make visible
+            
+            local nameplateGui = nameplate.SurfaceGui
+            local profilePicture = nameplateGui.ProfileFrame.ProfilePicture
+            local nameLabel = nameplateGui.PlayerName
+            
+            -- Set player profile picture
+            profilePicture.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
+            
+            -- Set player name
+            nameLabel.Text = player.Name
+            
+            -- Create arrow path from spawn to desk (first time registration)
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local startPos = player.Character.HumanoidRootPart.Position
+                local endPos = deskData.desk.Position
+                self:CreateArrowPath(startPos, endPos, player)
+                
+                -- Show welcome message
+                local gui = Instance.new("ScreenGui")
+                gui.Name = "WelcomeGui"
+                gui.Parent = player.PlayerGui
+                
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.new(0.6, 0, 0.2, 0)
+                frame.Position = UDim2.new(0.2, 0, 0.1, 0)
+                frame.BackgroundColor3 = Color3.new(0, 0.8, 0)
+                frame.BorderSizePixel = 0
+                frame.Parent = gui
+                
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0, 10)
+                corner.Parent = frame
+                
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(1, 0, 1, 0)
+                label.BackgroundTransparency = 1
+                label.Text = "¡Bienvenido! Sigue las flechas verdes hacia tu asiento asignado 🪑"
+                label.TextColor3 = Color3.new(1, 1, 1)
+                label.TextScaled = true
+                label.Font = Enum.Font.GothamBold
+                label.Parent = frame
+                
+                -- Remove welcome message after 8 seconds
+                game:GetService("Debris"):AddItem(gui, 8)
+            end
             
             -- Add player to game
             self.Players[player.UserId] = {
@@ -1213,6 +1630,12 @@ function GameManager:ResetGame()
         deskData.desk.BrickColor = BrickColor.new("Institutional white")
         deskData.chair.BrickColor = BrickColor.new("Really red")
         
+        -- Hide nameplate
+        deskData.nameplate.Transparency = 1
+        local nameplateGui = deskData.nameplate.SurfaceGui
+        nameplateGui.ProfileFrame.ProfilePicture.Image = ""
+        nameplateGui.PlayerName.Text = ""
+        
         -- Reset desk GUI
         local surfaceGui = deskData.desk.SurfaceGui
         for j = 1, 4 do
@@ -1253,13 +1676,36 @@ Players.PlayerRemoving:Connect(function(player)
         if GameManager.Desks[deskIndex] then
             GameManager.Desks[deskIndex].occupied = false
             GameManager.Desks[deskIndex].player = nil
+            
+            -- Hide nameplate
+            GameManager.Desks[deskIndex].nameplate.Transparency = 1
+            local nameplateGui = GameManager.Desks[deskIndex].nameplate.SurfaceGui
+            nameplateGui.ProfileFrame.ProfilePicture.Image = ""
+            nameplateGui.PlayerName.Text = ""
         end
         GameManager.Players[player.UserId] = nil
+    end
+    
+    -- Clean up any remaining arrows for this player
+    for _, arrow in pairs(workspace:GetChildren()) do
+        if arrow.Name:find("Arrow_" .. player.UserId) or arrow.Name:find("DeskMarker_" .. player.UserId) then
+            arrow:Destroy()
+        end
     end
 end)
 
 -- Initialize game
 GameManager:CreateClassroom()
+
+-- Real-time update loop for counters
+spawn(function()
+    while true do
+        if not GameManager.GameActive then
+            GameManager:UpdateAllCounters()
+        end
+        wait(1) -- Update every second
+    end
+end)
 
 -- Admin commands (for testing)
 game.Players.PlayerAdded:Connect(function(player)
@@ -1269,6 +1715,10 @@ game.Players.PlayerAdded:Connect(function(player)
                 GameManager:StartGame()
             elseif message:lower() == "/resetgame" then
                 GameManager:ResetGame()
+            elseif message:lower() == "/maxstudents" then
+                -- Change max students to 3 for testing
+                GameManager.MaxPlayers = 3
+                print("Máximo de estudiantes cambiado a 3")
             end
         end
     end)
