@@ -1,0 +1,748 @@
+-- Server_Part1
+-- Contiene el inicio del archivo original y todas las funciones de creación de frutas.
+ 
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local SpeedBoostEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+SpeedBoostEvent.Name = "SpeedBoostEvent"
+local InvisibilityEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+InvisibilityEvent.Name = "InvisibilityEvent"
+
+local AdminAbuseEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+AdminAbuseEvent.Name = "AdminAbuseEvent"
+
+local BrazilianDiscoEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+BrazilianDiscoEvent.Name = "BrazilianDiscoEvent"
+
+local BASE_SIZE = Vector3.new(40, 1, 40)
+local FRUIT_SIZE = Vector3.new(4, 4, 4)
+local WALK_SPEED = 6
+local LOCK_LASER_TIME = 60
+local FREE_BOOST_DURATION = 15
+local SPEED_BOOST_AMOUNT = 30
+local FRUIT_SPAWN_DELAY = 8
+local TRANSIT_TIME = 3
+local GUIDE_ARROW_DURATION = 10
+local LEADERBOARD_UPDATE_INTERVAL = 5
+
+local ADMIN_USERNAMES = {"vegetl_t", "Lalito23727"}
+
+local RARITIES = {
+Naranja = {
+ID = 1001,
+Color = Color3.fromRGB(255, 140, 0),
+ValueMultiplier = 1,
+RarityText = "Naranja Común 🍊",
+MoneyValue = 25,
+Description = "Una naranja cuadradita y jugosa",
+SpawnChance = 40
+},
+Manzana = {
+ID = 1002,
+Color = Color3.fromRGB(255, 0, 0),
+ValueMultiplier = 5,
+RarityText = "Manzana Rara 🍎",
+MoneyValue = 125,
+Description = "Una manzana crujiente y valiosa",
+SpawnChance = 25
+},
+Uvas = {
+ID = 1003,
+Color = Color3.fromRGB(128, 0, 128),
+ValueMultiplier = 50,
+RarityText = "Uvas Místicas 🍇",
+MoneyValue = 500,
+Description = "Un racimo de uvas de gran valor",
+SpawnChance = 15
+},
+Pina = {
+ID = 1004,
+Color = Color3.fromRGB(255, 255, 0),
+ValueMultiplier = 200,
+RarityText = "Piña Épica 🍍",
+MoneyValue = 2000,
+Description = "Una piña con un núcleo dorado de inmenso valor",
+SpawnChance = 8
+},
+SandiaDorada = {
+ID = 1005,
+Color = Color3.fromRGB(255, 215, 0),
+ValueMultiplier = 500,
+RarityText = "Sandía Dorada Legendaria 🟡",
+MoneyValue = 5000,
+Description = "Una sandía dorada de valor extraordinario",
+SpawnChance = 5
+},
+FrutaDragon = {
+ID = 1006,
+Color = Color3.fromRGB(138, 43, 226),
+ValueMultiplier = 1000,
+RarityText = "Fruta del Dragón Mítica 🐉",
+MoneyValue = 10000,
+Description = "Una fruta mítica con poder de dragón",
+SpawnChance = 3
+},
+EstrellaCosmica = {
+ID = 1007,
+Color = Color3.fromRGB(255, 20, 147),
+ValueMultiplier = 2000,
+RarityText = "Estrella Cósmica Divina ⭐",
+MoneyValue = 25000,
+Description = "Una estrella cósmica de poder divino",
+SpawnChance = 2
+},
+EsferaTiempo = {
+ID = 1008,
+Color = Color3.fromRGB(0, 255, 255),
+ValueMultiplier = 5000,
+RarityText = "Esfera del Tiempo Suprema ⌚",
+MoneyValue = 50000,
+Description = "Una esfera que controla el tiempo mismo",
+SpawnChance = 1
+}
+}
+
+local nextFruitID = 10000
+
+local basesFolder = Instance.new("Folder", Workspace)
+basesFolder.Name = "Bases"
+local fruitsFolder = Instance.new("Folder", Workspace)
+fruitsFolder.Name = "Fruits"
+local mapFolder = Instance.new("Folder", Workspace)
+mapFolder.Name = "Map"
+
+local playerData = {}
+local baseCount = 0
+local fruitsInTransit = {}
+local isSpawning = false
+
+local brazilianDiscoActive = false
+local discoLights = {}
+local originalColors = {}
+
+local BASE_POSITIONS = {
+{Position = Vector3.new(-80, 0, 80), Orientation = Vector3.new(0, -90, 0)},
+{Position = Vector3.new(-80, 0, 0), Orientation = Vector3.new(0, -90, 0)},
+{Position = Vector3.new(80, 0, 80), Orientation = Vector3.new(0, 90, 0)},
+{Position = Vector3.new(80, 0, 0), Orientation = Vector3.new(0, 90, 0)},
+}
+
+local FRUIT_SPAWN_POINT = Vector3.new(0, 3, 100)
+local FRUIT_END_POINT = Vector3.new(0, 3, -100)
+
+local SOUND_IDS = {
+BackgroundMusic = "rbxassetid://93866902562483",
+Purchase = "rbxassetid://10066947742",
+CollectMoney = "rbxassetid://1836684482",
+FruitGood = "rbxassetid://1846476088",
+BrazilianDisco = "rbxassetid://99161894069716"
+}
+
+local function IsAdmin(player)
+    for _, username in ipairs(ADMIN_USERNAMES) do
+        if username:lower() == player.Name:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+local function playSound(soundId, volume, parent)
+    local sound = Instance.new("Sound", parent or Workspace)
+    sound.SoundId = soundId
+    sound.Volume = volume or 1
+    pcall(function() sound:Play() end)
+        Debris:AddItem(sound, sound.TimeLength + 1)
+    end
+    
+    local function updateMoneyLabel(player)
+        if not player then return end
+        local gui = player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("MoneyGui")
+        if gui and gui:FindFirstChild("moneyLabel") then
+            gui.moneyLabel.Text = "Dinero: $" .. (playerData[player] and playerData[player].Money or 0)
+        end
+    end
+    
+    local function buyItem(player, itemTable)
+        if not player or not itemTable or not playerData[player] then return end
+        local money = playerData[player].Money or 0
+        if money >= itemTable.Price then
+            playerData[player].Money = money - itemTable.Price
+            updateMoneyLabel(player)
+            playSound(SOUND_IDS.Purchase, 0.5)
+            
+            if itemTable.Stat == "WalkSpeed" then
+                if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+                    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                    humanoid.WalkSpeed = (humanoid.WalkSpeed or 16) + itemTable.Value
+                end
+            end
+        else
+        end
+        end
+            
+            local function createMapPart(size, position, color, material, parent, name, canCollide)
+                local part = Instance.new("Part")
+                part.Size = size
+                part.Position = position
+                part.Anchored = true
+                part.Color = color
+                part.Material = material or Enum.Material.Plastic
+                part.Parent = parent
+                part.Name = name or "MapPart"
+                part.CanCollide = canCollide or true
+                return part
+            end
+            
+            local function createOrange()
+                local orange = Instance.new("Model")
+                orange.Name = "Naranja"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(2.5, 2.5, 2.5)
+                body.Color = RARITIES.Naranja.Color
+                body.Material = Enum.Material.Plastic
+                body.Shape = Enum.PartType.Ball
+                body.Parent = orange
+                body.Name = "Body"
+                
+                local stem = Instance.new("Part")
+                stem.Size = Vector3.new(0.5, 0.8, 0.5)
+                stem.Color = Color3.fromRGB(139, 69, 19)
+                stem.Shape = Enum.PartType.Block
+                stem.Parent = orange
+                stem.Name = "Stem"
+                
+                local leaf = Instance.new("Part")
+                leaf.Size = Vector3.new(1.2, 0.1, 0.8)
+                leaf.Color = Color3.fromRGB(0, 150, 0)
+                leaf.Shape = Enum.PartType.Block
+                leaf.Parent = orange
+                leaf.Name = "Leaf"
+                
+                local bodyWeld = Instance.new("WeldConstraint")
+                bodyWeld.Part0 = body
+                bodyWeld.Part1 = stem
+                bodyWeld.Parent = orange
+                
+                local leafWeld = Instance.new("WeldConstraint")
+                leafWeld.Part0 = body
+                leafWeld.Part1 = leaf
+                leafWeld.Parent = orange
+                
+                stem.CFrame = body.CFrame * CFrame.new(0, 1.65, 0)
+                leaf.CFrame = body.CFrame * CFrame.new(0, 1.65, 0) * CFrame.Angles(0, 0, math.rad(45))
+                
+                return orange
+            end
+            
+            local function createApple()
+                local apple = Instance.new("Model")
+                apple.Name = "Manzana"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(2.5, 2.5, 2.5)
+                body.Color = RARITIES.Manzana.Color
+                body.Material = Enum.Material.Plastic
+                body.Shape = Enum.PartType.Block
+                body.Parent = apple
+                body.Name = "Body"
+                
+                local stem = Instance.new("Part")
+                stem.Size = Vector3.new(0.5, 1, 0.5)
+                stem.Color = Color3.fromRGB(139, 69, 19)
+                stem.Shape = Enum.PartType.Block
+                stem.Parent = apple
+                stem.Name = "Stem"
+                
+                local bodyWeld = Instance.new("WeldConstraint")
+                bodyWeld.Part0 = body
+                bodyWeld.Part1 = stem
+                bodyWeld.Parent = apple
+                
+                stem.CFrame = body.CFrame * CFrame.new(0, 1.75, 0)
+                
+                return apple
+            end
+            
+            local function createGrapes()
+                local grapes = Instance.new("Model")
+                grapes.Name = "Uvas"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(0.5, 0.5, 0.5)
+                body.Color = RARITIES.Uvas.Color
+                body.Material = Enum.Material.Plastic
+                body.Shape = Enum.PartType.Ball
+                body.Parent = grapes
+                body.Name = "Body"
+                
+                local numGrapes = 12
+                local grapeParts = {}
+                table.insert(grapeParts, body)
+                
+                local offsets = {
+                Vector3.new(0, -0.6, 0), Vector3.new(0.5, -0.3, 0), Vector3.new(-0.5, -0.3, 0),
+                Vector3.new(0.25, -0.9, 0), Vector3.new(-0.25, -0.9, 0), Vector3.new(0.6, -1.2, 0.2),
+                Vector3.new(-0.6, -1.2, 0.2), Vector3.new(0, -1.5, 0), Vector3.new(0.4, -1.5, -0.2),
+                Vector3.new(-0.4, -1.5, -0.2), Vector3.new(0.2, -1.8, 0.1), Vector3.new(-0.2, -1.8, 0.1)
+                }
+                
+                for i = 1, numGrapes do
+                    local grape = Instance.new("Part")
+                    grape.Size = Vector3.new(0.4, 0.4, 0.4)
+                    grape.Color = RARITIES.Uvas.Color
+                    grape.Material = Enum.Material.Plastic
+                    grape.Shape = Enum.PartType.Ball
+                    grape.Parent = grapes
+                    
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = body
+                    weld.Part1 = grape
+                    weld.Parent = grapes
+                    
+                    grape.CFrame = body.CFrame * CFrame.new(offsets[i])
+                    
+                    table.insert(grapeParts, grape)
+                end
+                
+                local stem = Instance.new("Part")
+                stem.Size = Vector3.new(0.5, 1, 0.5)
+                stem.Color = Color3.fromRGB(139, 69, 19)
+                stem.Shape = Enum.PartType.Block
+                stem.Parent = grapes
+                
+                local stemWeld = Instance.new("WeldConstraint")
+                stemWeld.Part0 = body
+                stemWeld.Part1 = stem
+                stemWeld.Parent = grapes
+                
+                stem.CFrame = body.CFrame * CFrame.new(0, 0.75, 0)
+                
+                return grapes
+            end
+            
+            local function createPineapple()
+                local pineapple = Instance.new("Model")
+                pineapple.Name = "Pina"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(2.5, 5, 2.5)
+                body.Color = RARITIES.Pina.Color
+                body.Material = Enum.Material.Plastic
+                body.Shape = Enum.PartType.Block
+                body.Parent = pineapple
+                body.Name = "Body"
+                
+                local crown = Instance.new("Part")
+                crown.Size = Vector3.new(2, 2.5, 2)
+                crown.Color = Color3.fromRGB(0, 150, 0)
+                crown.Shape = Enum.PartType.Block
+                crown.Parent = pineapple
+                
+                local bodyWeld = Instance.new("WeldConstraint")
+                bodyWeld.Part0 = body
+                bodyWeld.Part1 = crown
+                bodyWeld.Parent = pineapple
+                
+                crown.CFrame = body.CFrame * CFrame.new(0, 3.75, 0)
+                
+                local numLeaves = 4
+                for i = 1, numLeaves do
+                    local leaf = Instance.new("Part")
+                    leaf.Size = Vector3.new(0.5, 2, 0.5)
+                    local angle = math.rad((360/numLeaves) * (i-1))
+                    leaf.CFrame = body.CFrame * CFrame.new(0, 2.5, 0) * CFrame.new(2 * math.cos(angle), 0, 2 * math.sin(angle)) * CFrame.Angles(0, angle, math.rad(45))
+                    leaf.Color = Color3.fromRGB(0, 150, 0)
+                    leaf.Shape = Enum.PartType.Block
+                    leaf.Parent = pineapple
+                    
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = body
+                    weld.Part1 = leaf
+                    weld.Parent = leaf
+                end
+                
+                return pineapple
+            end
+            
+            local function createWatermelon()
+                local watermelon = Instance.new("Model")
+                watermelon.Name = "SandiaDorada"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(4, 3, 4)
+                body.Color = RARITIES.SandiaDorada.Color
+                body.Material = Enum.Material.Neon
+                body.Shape = Enum.PartType.Ball
+                body.Parent = watermelon
+                body.Name = "Body"
+                
+                local stem = Instance.new("Part")
+                stem.Size = Vector3.new(0.8, 1.2, 0.8)
+                stem.Color = Color3.fromRGB(139, 69, 19)
+                stem.Shape = Enum.PartType.Block
+                stem.Parent = watermelon
+                stem.Name = "Stem"
+                
+                local bodyWeld = Instance.new("WeldConstraint")
+                bodyWeld.Part0 = body
+                bodyWeld.Part1 = stem
+                bodyWeld.Parent = watermelon
+                
+                stem.CFrame = body.CFrame * CFrame.new(0, 2, 0)
+                
+                return watermelon
+            end
+            
+            local function createDragonFruit()
+                local dragonFruit = Instance.new("Model")
+                dragonFruit.Name = "FrutaDragon"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(3.5, 4, 3.5)
+                body.Color = RARITIES.FrutaDragon.Color
+                body.Material = Enum.Material.ForceField
+                body.Shape = Enum.PartType.Block
+                body.Parent = dragonFruit
+                body.Name = "Body"
+                
+                local numScales = 6
+                for i = 1, numScales do
+                    local scale = Instance.new("Part")
+                    scale.Size = Vector3.new(1, 0.5, 1)
+                    scale.Color = Color3.fromRGB(255, 0, 255)
+                    scale.Material = Enum.Material.Neon
+                    scale.Shape = Enum.PartType.Block
+                    scale.Parent = dragonFruit
+                    
+                    local angle = math.rad((360/numScales) * (i-1))
+                    scale.CFrame = body.CFrame * CFrame.new(2 * math.cos(angle), 0, 2 * math.sin(angle)) * CFrame.Angles(0, angle, 0)
+                    
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = body
+                    weld.Part1 = scale
+                    weld.Parent = dragonFruit
+                end
+                
+                return dragonFruit
+            end
+            
+            local function createCosmicStar()
+                local cosmicStar = Instance.new("Model")
+                cosmicStar.Name = "EstrellaCosmica"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(3, 3, 3)
+                body.Color = RARITIES.EstrellaCosmica.Color
+                body.Material = Enum.Material.Neon
+                body.Shape = Enum.PartType.Ball
+                body.Parent = cosmicStar
+                body.Name = "Body"
+                
+                local numPoints = 5
+                for i = 1, numPoints do
+                    local point = Instance.new("Part")
+                    point.Size = Vector3.new(0.5, 2, 0.5)
+                    point.Color = Color3.fromRGB(255, 255, 0)
+                    point.Material = Enum.Material.Neon
+                    point.Shape = Enum.PartType.Block
+                    point.Parent = cosmicStar
+                    
+                    local angle = math.rad((360/numPoints) * (i-1))
+                    point.CFrame = body.CFrame * CFrame.new(2.5 * math.cos(angle), 0, 2.5 * math.sin(angle)) * CFrame.Angles(0, angle, math.rad(45))
+                    
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = body
+                    weld.Part1 = point
+                    weld.Parent = cosmicStar
+                end
+                
+                return cosmicStar
+            end
+            
+            local function createTimeSphere()
+                local timeSphere = Instance.new("Model")
+                timeSphere.Name = "EsferaTiempo"
+                
+                local body = Instance.new("Part")
+                body.Size = Vector3.new(5, 5, 5)
+                body.Color = RARITIES.EsferaTiempo.Color
+                body.Material = Enum.Material.Glass
+                body.Shape = Enum.PartType.Ball
+                body.Transparency = 0.3
+                body.Parent = timeSphere
+                body.Name = "Body"
+                
+                local numRings = 3
+                for i = 1, numRings do
+                    local ring = Instance.new("Part")
+                    ring.Size = Vector3.new(6 + i, 0.2, 6 + i)
+                    ring.Color = Color3.fromRGB(0, 200, 255)
+                    ring.Material = Enum.Material.Neon
+                    ring.Shape = Enum.PartType.Cylinder
+                    ring.Parent = timeSphere
+                    
+                    local angle = math.rad(60 * i)
+                    ring.CFrame = body.CFrame * CFrame.Angles(angle, 0, 0)
+                    
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = body
+                    weld.Part1 = ring
+                    weld.Parent = timeSphere
+                end
+                
+                return timeSphere
+            end
+            
+            local function createFruit(pos)
+                local rarityNames = {}
+                local totalWeight = 0
+                
+                for name, data in pairs(RARITIES) do
+                    table.insert(rarityNames, name)
+                    totalWeight = totalWeight + data.SpawnChance
+                end
+                
+                local randomNumber = math.random() * totalWeight
+                local selectedRarityName = rarityNames[1]
+                local cumulativeWeight = 0
+                
+                for name, data in pairs(RARITIES) do
+                    cumulativeWeight = cumulativeWeight + data.SpawnChance
+                    if randomNumber <= cumulativeWeight then
+                        selectedRarityName = name
+                        break
+                    end
+                end
+                
+                local rarityData = RARITIES[selectedRarityName]
+                local fruitValue = rarityData.MoneyValue
+                
+                local fruit
+                
+                if selectedRarityName == "Naranja" then
+                    fruit = createOrange()
+                elseif selectedRarityName == "Manzana" then
+                    fruit = createApple()
+                elseif selectedRarityName == "Uvas" then
+                    fruit = createGrapes()
+                elseif selectedRarityName == "Pina" then
+                    fruit = createPineapple()
+                elseif selectedRarityName == "SandiaDorada" then
+                    fruit = createWatermelon()
+                elseif selectedRarityName == "FrutaDragon" then
+                    fruit = createDragonFruit()
+                elseif selectedRarityName == "EstrellaCosmica" then
+                    fruit = createCosmicStar()
+                elseif selectedRarityName == "EsferaTiempo" then
+                    fruit = createTimeSphere()
+                end
+                
+                if not fruit then
+                    return nil
+                end
+                
+                fruit.Name = selectedRarityName
+                local body = fruit:FindFirstChild("Body")
+                if not body then 
+                    fruit:Destroy()
+                    return nil
+                end
+                
+                fruit.PrimaryPart = body
+                fruit.Parent = fruitsFolder
+                
+                if fruit.PrimaryPart then
+                    fruit:SetPrimaryPartCFrame(CFrame.new(pos))
+                else
+                    fruit:Destroy()
+                    return nil
+                end
+                
+                local valueGui = Instance.new("BillboardGui")
+                valueGui.Size = UDim2.new(0, 120, 0, 60)
+                valueGui.StudsOffset = Vector3.new(0, 4, 0)
+                valueGui.AlwaysOnTop = true
+                valueGui.Adornee = body
+                valueGui.Parent = fruit
+                
+                local rarityLabel = Instance.new("TextLabel")
+                rarityLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                rarityLabel.Position = UDim2.new(0, 0, 0, 0)
+                rarityLabel.Text = rarityData.RarityText
+                rarityLabel.TextScaled = true
+                rarityLabel.Font = Enum.Font.SourceSansBold
+                rarityLabel.BackgroundTransparency = 1
+                rarityLabel.TextColor3 = rarityData.Color
+                rarityLabel.Parent = valueGui
+                
+                local valueLabel = Instance.new("TextLabel")
+                valueLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                valueLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                valueLabel.Text = "$" .. fruitValue
+                valueLabel.TextScaled = true
+                valueLabel.Font = Enum.Font.SourceSansBold
+                valueLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                valueLabel.BackgroundTransparency = 1
+                valueLabel.Parent = valueGui
+                
+                local prompt = Instance.new("ProximityPrompt")
+                prompt.ActionText = "Comprar - $" .. fruitValue
+                prompt.ObjectText = rarityData.RarityText
+                prompt.HoldDuration = 1
+                prompt.MaxActivationDistance = 8
+                prompt.Parent = body
+                
+                nextFruitID = nextFruitID + 1
+                fruit:SetAttribute("Value", fruitValue)
+                fruit:SetAttribute("Rarity", selectedRarityName)
+                fruit:SetAttribute("FruitID", nextFruitID)
+                fruit:SetAttribute("UniqueID", rarityData.ID)
+                
+                prompt.Triggered:Connect(function(player)
+                    if fruit and fruit.Parent and fruit.Parent == fruitsFolder and not table.find(fruitsInTransit, fruit) then
+                        local data = playerData[player]
+                        if not data then
+                            return
+                        end
+                        
+                        if data.Money < fruitValue then
+                            local gui = player.PlayerGui:FindFirstChild("ErrorNotification")
+                            if gui then gui:Destroy() end
+                            
+                            gui = Instance.new("ScreenGui")
+                            gui.Name = "ErrorNotification"
+                            gui.Parent = player.PlayerGui
+                            
+                            local notification = Instance.new("TextLabel")
+                            notification.Size = UDim2.new(0.4, 0, 0.1, 0)
+                            notification.Position = UDim2.new(0.3, 0, 0.45, 0)
+                            notification.Text = "❌ Dinero insuficiente! Necesitas $" .. fruitValue
+                            notification.TextScaled = true
+                            notification.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                            notification.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            notification.Parent = gui
+                            
+                            task.delay(3, function()
+                                if gui then gui:Destroy() end
+                            end)
+                            return
+                        end
+                        
+                        prompt:Destroy()
+                        table.insert(fruitsInTransit, fruit)
+                        
+                        local targetQuad = nil
+                        for i = 1, 6 do
+                            local quadName = "FruitQuad" .. i
+                            local quad = data.Base:FindFirstChild(quadName)
+                            if quad and not quad:FindFirstChild("Fruit") then
+                                targetQuad = quad
+                                break
+                            end
+                        end
+                        
+                        if not targetQuad then
+                            local index = table.find(fruitsInTransit, fruit)
+                            if index then table.remove(fruitsInTransit, index) end
+                            fruit:Destroy()
+                            return
+                        end
+                        
+                        local targetPosition = targetQuad.Position + Vector3.new(0, body.Size.Y / 2 + targetQuad.Size.Y / 2, 0)
+                        
+                        playerData[player].Money = playerData[player].Money - fruitValue
+                        updateMoneyLabel(player)
+                        playSound(SOUND_IDS.Purchase, 0.5)
+                        
+                        local tweenInfo = TweenInfo.new(TRANSIT_TIME, Enum.EasingStyle.Linear)
+                        local tween = TweenService:Create(fruit.PrimaryPart, tweenInfo, {Position = targetPosition})
+                        
+                        tween.Completed:Connect(function()
+                            local primaryPart = fruit.PrimaryPart
+                            primaryPart.CanCollide = true
+                            primaryPart.Anchored = true
+                            
+                            fruit.Parent = targetQuad
+                            
+                            local incomePerSecond = math.floor(fruitValue * 0.1)
+                            fruit:SetAttribute("IncomeRate", incomePerSecond)
+                            fruit:SetAttribute("Owner", player.UserId)
+                            
+                            local index = table.find(fruitsInTransit, fruit)
+                            if index then
+                                table.remove(fruitsInTransit, index)
+                            end
+                        end)
+                        tween:Play()
+                    end
+                end)
+                
+                return fruit
+            end
+            
+            _G.Brainrots_Share = {
+            Players = Players,
+            Workspace = Workspace,
+            TweenService = TweenService,
+            RunService = RunService,
+            ReplicatedStorage = ReplicatedStorage,
+            Debris = game:GetService("Debris"),
+            MarketplaceService = MarketplaceService,
+            SpeedBoostEvent = SpeedBoostEvent,
+            InvisibilityEvent = InvisibilityEvent,
+            AdminAbuseEvent = AdminAbuseEvent,
+            BrazilianDiscoEvent = BrazilianDiscoEvent,
+            BASE_SIZE = BASE_SIZE,
+            FRUIT_SIZE = FRUIT_SIZE,
+            WALK_SPEED = WALK_SPEED,
+            LOCK_LASER_TIME = LOCK_LASER_TIME,
+            FREE_BOOST_DURATION = FREE_BOOST_DURATION,
+            SPEED_BOOST_AMOUNT = SPEED_BOOST_AMOUNT,
+            FRUIT_SPAWN_DELAY = FRUIT_SPAWN_DELAY,
+            TRANSIT_TIME = TRANSIT_TIME,
+            GUIDE_ARROW_DURATION = GUIDE_ARROW_DURATION,
+            LEADERBOARD_UPDATE_INTERVAL = LEADERBOARD_UPDATE_INTERVAL,
+            ADMIN_USERNAMES = ADMIN_USERNAMES,
+            RARITIES = RARITIES,
+            nextFruitID = nextFruitID,
+            basesFolder = basesFolder,
+            fruitsFolder = fruitsFolder,
+            mapFolder = mapFolder,
+            playerData = playerData,
+            baseCount = baseCount,
+            fruitsInTransit = fruitsInTransit,
+            isSpawning = isSpawning,
+            brazilianDiscoActive = brazilianDiscoActive,
+            discoLights = discoLights,
+            originalColors = originalColors,
+            BASE_POSITIONS = BASE_POSITIONS,
+            FRUIT_SPAWN_POINT = FRUIT_SPAWN_POINT,
+            FRUIT_END_POINT = FRUIT_END_POINT,
+            SOUND_IDS = SOUND_IDS,
+            IsAdmin = IsAdmin,
+            playSound = playSound,
+            updateMoneyLabel = updateMoneyLabel,
+            buyItem = buyItem,
+            createMapPart = createMapPart,
+            createOrange = createOrange,
+            createApple = createApple,
+            createGrapes = createGrapes,
+            createPineapple = createPineapple,
+            createWatermelon = createWatermelon,
+            createDragonFruit = createDragonFruit,
+            createCosmicStar = createCosmicStar,
+            createTimeSphere = createTimeSphere,
+            createFruit = createFruit
+            }
+            
+            -- Fin de Server_Part1
+            
+            
